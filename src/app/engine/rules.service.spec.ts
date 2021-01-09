@@ -79,6 +79,8 @@ describe('RulesService', () => {
     it('can match multiple conditions against an array property', async () => {
       // setup
       const expectedRuleName = "Hypothyroidism & Dementia";
+      const arrayOfRequiredDxs = ["Hypothyroidism", "Dementia"]
+      // we want to match only if there is a medication with diagnosis = "Hypothyroidism", AND there is a medication with diagnosis = "Dementia"
       const rules = [
         {
           name: "test rule 1",
@@ -89,18 +91,19 @@ describe('RulesService', () => {
         {
           name: expectedRuleName,
           conditions: {
-            $and: [
-              {
-                medications: {
-                  $elemMatch: { diagnosis: "Hypothyroidism" }
-                }
-              },
-              {
-                medications: {
-                  $elemMatch: { diagnosis: "Dementia" }
-                }
-              },
-            ]
+            "medications.diagnosis": { "$all": arrayOfRequiredDxs }
+            // $and: [
+            //   {
+            //     medications: {
+            //       $elemMatch: { diagnosis: "Hypothyroidism" }
+            //     }
+            //   },
+            //   {
+            //     medications: {
+            //       $elemMatch: { diagnosis: "Dementia" }
+            //     }
+            //   },
+            // ]
           }
         },
         {
@@ -119,7 +122,74 @@ describe('RulesService', () => {
       expect(matchingRules.length).toEqual(1);
       expect(matchingRules.find((item) => item.name === expectedRuleName)).toBeTruthy();
     });
+
+    it('can use a callback in the query to do whatever the heck we want', async () => {
+      // setup
+      const expectedRuleName = "simple callback test";
+
+      const rules = [
+        {
+          name: expectedRuleName,
+          conditions: {
+            events: {
+              $cb: (events) => {
+                const trashTakenOutWithExtremePrejudice = events.filter((event) => {
+                  return event.name === 'trashTakenOut' && event.payload.disposition === "with extreme prejudice";
+                })
+                return trashTakenOutWithExtremePrejudice.length >= 1;
+              }
+            }
+          }
+        }
+      ];
+
+      // act
+      const matchingRules = service.getMatchingRules([state], rules);
+
+      // assert
+      expect(matchingRules).toBeTruthy();
+      expect(matchingRules.length).toEqual(1);
+      expect(matchingRules.find((item) => item.name === expectedRuleName)).toBeTruthy();
+    });
+
+    // https://stackoverflow.com/questions/28153179/match-at-least-n-elements-of-an-array-to-a-list-of-conditions
+    it('can count multiple conditions against an array property', async () => {
+      // setup
+      const expectedRuleName = "navigation requirement one";
+      const approvedLocations = [1001, 1002, 1003, 1004, 1005];
+      // we are using a callback to test if the user navigated to at least 3 out of the 5 approved locations
+      const rules = [
+        {
+          name: expectedRuleName,
+          conditions: {
+            events: {
+              $cb: (events) => {
+                const pageNavigationsToAnApprovedLocation = events.filter((event) => {
+                  let match = false;
+                  if (event.name === 'pageNavigated' && event.payload && event.payload.contextId) {
+                    match = approvedLocations.includes(event.payload.contextId);
+                  }
+                  return match;
+                });
+                return pageNavigationsToAnApprovedLocation.length >= 3;
+              }
+            }
+          }
+        }
+      ];
+
+      // act
+      const matchingRules = service.getMatchingRules([state], rules);
+
+      // assert
+      expect(matchingRules).toBeTruthy();
+      expect(matchingRules.length).toEqual(1);
+      expect(matchingRules.find((item) => item.name === expectedRuleName)).toBeTruthy();
+    });
+
   });
+
+
 
   describe('executeAction', () => {
     it('can alterMedicationDx', async () => {
@@ -165,6 +235,39 @@ describe('RulesService', () => {
   });
 
 });
+
+const state = {
+  "events": [
+    {
+      "id": 100,
+      "name": "pageNavigated",
+      "payload": {
+        "contextId": 1001
+      },
+    },
+    {
+      "id": 101,
+      "name": "pageNavigated",
+      "payload": {
+        "contextId": 1003
+      },
+    },
+    {
+      "id": 102,
+      "name": "pageNavigated",
+      "payload": {
+        "contextId": 1004
+      },
+    },
+    {
+      "id": 103,
+      "name": "trashTakenOut",
+      "payload": {
+        "disposition": "with extreme prejudice"
+      }
+    }
+  ]
+};
 
 const merchLayout = {
   "pageGroups": [
