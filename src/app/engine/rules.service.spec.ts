@@ -31,6 +31,32 @@ describe('RulesService', () => {
     tShirtStyle: null
   };
 
+  const gameState = {
+    currentAction: {},
+    players: [
+      {
+        id: 1,
+        name: 'Jojosh the Stout',
+        status: 4,
+        inventory: [
+          { id: 100, name: 'torch', quantity: 997 },
+          { id: 101, name: 'Special Rock', quantity: 1 }
+        ]
+      },
+      {
+        id: 2,
+        name: 'Cardia the Wise',
+        status: 5,
+        inventory: [
+          { id: 100, name: 'torch', quantity: 3 },
+          { id: 433, name: 'Magical Dagger of Coolness', quantity: 1 },
+          { id: 239, name: 'Book of Secrets', quantity: 1 }
+        ]
+      }
+    ]
+  };
+
+
   beforeEach(() => {
     TestBed.configureTestingModule({});
     service = TestBed.inject(RulesService);
@@ -65,7 +91,7 @@ describe('RulesService', () => {
         conditions: {
           quantity: {$gt:50}
         }
-      }
+      };
 
       // act
       const isMatch = service.isMatch([productFacts[2]], rule);
@@ -79,7 +105,8 @@ describe('RulesService', () => {
     it('can match multiple conditions against an array property', async () => {
       // setup
       const expectedRuleName = "Hypothyroidism & Dementia";
-      const arrayOfRequiredDxs = ["Hypothyroidism", "Dementia"]
+      const arrayOfRequiredDxs = ["Hypothyroidism", "Dementia"];
+
       // we want to match only if there is a medication with diagnosis = "Hypothyroidism", AND there is a medication with diagnosis = "Dementia"
       const rules = [
         {
@@ -135,7 +162,7 @@ describe('RulesService', () => {
               $cb: (events) => {
                 const trashTakenOutWithExtremePrejudice = events.filter((event) => {
                   return event.name === 'trashTakenOut' && event.payload.disposition === "with extreme prejudice";
-                })
+                });
                 return trashTakenOutWithExtremePrejudice.length >= 1;
               }
             }
@@ -180,6 +207,45 @@ describe('RulesService', () => {
 
       // act
       const matchingRules = service.getMatchingRules([state], rules);
+
+      // assert
+      expect(matchingRules).toBeTruthy();
+      expect(matchingRules.length).toEqual(1);
+      expect(matchingRules.find((item) => item.name === expectedRuleName)).toBeTruthy();
+    });
+
+    it('can match an id within an array of objects and match further conditions on same array item', async () => {
+      // setup
+      const expectedRuleName = 'dagger of coolness special thing';
+      const currentAction = {
+        name: 'enemyDefeated',
+        contextId: 179,
+        source: 2 // Cardia
+      };
+      gameState.currentAction = currentAction;
+
+      // we want to match if currentAction.name == 'enemyDefeated' and currentEvent.contextId == 179 and player currentEvent.source's
+      //  inventory contains id == 433
+      const rules = [
+        {
+          name: expectedRuleName,
+          conditions: {
+            'currentAction.name': 'enemyDefeated',
+            'currentAction.contextId': 179,
+            players: {
+              $elemMatch: {
+                id: currentAction.source,
+                'inventory.id': { $contains: 433 }
+              }
+            }
+          }
+
+        }
+      ];
+
+
+      // act
+      const matchingRules = service.getMatchingRules([gameState], rules);
 
       // assert
       expect(matchingRules).toBeTruthy();
