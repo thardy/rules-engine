@@ -1,14 +1,14 @@
 import {Actions} from './actions.constants';
 
 export class Action {
-  action: string;
+  name: string;
   parameters: any;
 
   constructor(options: {
-    action?: string,
+    name?: string,
     parameters?: any,
   } = {}) {
-    this.action = options.action || Actions.publishEvent;
+    this.name = options.name || Actions.publishEvent;
     this.parameters = options.parameters || null;
   }
 }

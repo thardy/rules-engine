@@ -4,6 +4,7 @@ import { RulesService } from './rules.service';
 import {Action} from './action.model';
 import {Actions} from './actions.constants';
 import * as _ from 'lodash-es';
+import {Rule} from './rule.model';
 
 describe('RulesService', () => {
   let service: RulesService;
@@ -28,7 +29,8 @@ describe('RulesService', () => {
     doYouWantATShirt: true,
     tShirtSize: null,
     tShirtColor: null,
-    tShirtStyle: null
+    tShirtStyle: null,
+    someProperty: null
   };
 
   beforeEach(() => {
@@ -68,7 +70,7 @@ describe('RulesService', () => {
       }
 
       // act
-      const isMatch = service.isMatch([productFacts[2]], rule);
+      const isMatch = service.runQuery([productFacts[2]], rule);
 
       // assert
       expect(isMatch).toBeTruthy();
@@ -196,7 +198,7 @@ describe('RulesService', () => {
       // setup
       const newValue = 'F0280';
       const action = new Action({
-        action: Actions.alterMedicationDx,
+        name: Actions.alterMedicationDx,
         parameters: {
           lookupKey: 'diagnosis',
           lookupValue: 'Dementia',
@@ -216,7 +218,7 @@ describe('RulesService', () => {
     it('can makeQuestionVisible', async () => {
       // setup
       const action = new Action({
-        action: Actions.alterFormItemVisibility,
+        name: Actions.alterFormItemVisibility,
         parameters: {
           formItemLevel: 'section',
           shortName: 'tShirtChoices',
@@ -231,6 +233,49 @@ describe('RulesService', () => {
       // assert
       const tShirtChoicesSection = facts.layout['pageGroups'][0]['pages'][0]['sections'][1];
       expect(tShirtChoicesSection.visible).toEqual(true);
+    });
+  });
+
+  describe('runRules', () => {
+    it('can execute actions for matched rules', async () => {
+      // setup
+      const rules = [
+        new Rule({
+          name: 'rule1',
+          conditions: {
+            name: 'Steve Rogers'
+          },
+          actions: [
+            new Action({
+              name: Actions.publishEvent,
+              parameters: {
+                name: 'contactCaptainAmerica',
+                payload: {
+                  theNumber: 122
+                }
+              }
+            }),
+            new Action({
+              name: Actions.publishEvent,
+              parameters: {
+                name: 'doSomethingElse',
+                payload: {
+                  theString: 'cheese'
+                }
+              }
+            })
+          ]
+        }),
+
+      ];
+
+      const facts = [_.cloneDeep(merchAnswers)];
+
+      // act
+      service.runRules(rules, facts);
+
+      // assert
+      expect(facts[0].someProperty).toEqual('doSomethingElse');
     });
   });
 

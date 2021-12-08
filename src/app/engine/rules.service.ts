@@ -3,6 +3,8 @@ import * as _ from 'lodash-es';
 import * as underscoreQuery from 'underscore-query';
 import {Action} from './action.model';
 import {Actions} from './actions.constants';
+import {Rule} from './rule.model';
+import {ActionService} from './action.service';
 const query = underscoreQuery(_, false);
 
 @Injectable({
@@ -10,7 +12,7 @@ const query = underscoreQuery(_, false);
 })
 export class RulesService {
 
-  constructor() {
+  constructor(private actionService: ActionService) {
 
   }
 
@@ -21,27 +23,40 @@ export class RulesService {
   //  - see if each rule matches the facts (isActive/isMatch?)
   //  - perform actions for rule
 
-  isMatch(facts, rule) {
+  runRules(rules: Rule[], facts: any) {
+    const matchedRules = this.getMatchingRules(facts, rules);
+    this.executeMatchedRules(facts, matchedRules);
+  }
+
+  runQuery(facts, rule) {
     let isMatch = false;
 
     const queryResult = query(facts, rule.conditions);
 
     return queryResult && queryResult.length > 0;
+    //return queryResult;
   }
 
 
   getMatchingRules(facts: any, rules) {
     const matchingRules = [];
-    //const queryResults = [];
+    let queryResults = [];
 
     rules.forEach((rule) => {
-      const isMatch = this.isMatch(facts, rule);
+      const isMatch = this.runQuery(facts, rule);
       if (isMatch) {
         //queryResults.push(queryResult);
         matchingRules.push(rule);
       }
     });
 
+
+    // todo: need a way to tie the queryResults to the matchedRule.  I'm hesitant because these queryResults could be large,
+    //  and I don't want to just add them to each rule.  In the case of the EvaluationAnswers, basically the entire result either
+    //  matches or it doesn't.  It could be bad to add that entire object to every rule that matches.  I'd at least like a way to
+    //  simply point to the results that came back in the query without replicating them.
+    //  UPDATE: I'm abandoning this idea.  Actions need to be completely independent.  Returning data that can be mutated by lots of
+    //  different actions carries its own set of very undesirable possibilities.
     return matchingRules;
   }
 
@@ -68,49 +83,20 @@ export class RulesService {
     // }
     const parameters = action.parameters;
 
-    switch (action.action) {
-      case Actions.alterMedicationDx:
-        const medication = facts.medications.find((med) => med[parameters.lookupKey] === parameters.lookupValue)
-        medication.dx = parameters.newValue;
-        break;
-      case Actions.alterFormItemVisibility:
-        // todo: refactor
-        for (const pageGroup of facts.layout.pageGroups) {
-          if (parameters.formItemLevel === 'pageGroup') {
-            if (pageGroup.shortName === parameters.shortName) {
-              pageGroup.visible = parameters.newVisibilityValue;
-            }
-          }
-          else {
-            for (const page of pageGroup.pages) {
-              if (parameters.formItemLevel === 'page') {
-                if (page.shortName === parameters.shortName) {
-                  page.visible = parameters.newVisibilityValue;
-                }
-              }
-              else {
-                for (const section of page.sections) {
-                  if (parameters.formItemLevel === 'section') {
-                    if (section.shortName === parameters.shortName) {
-                      section.visible = parameters.newVisibilityValue;
-                    }
-                  }
-                  else {
-                    for (const question of section.questions) {
-                      if (parameters.formItemLevel === 'question') {
-                        if (question.shortName === parameters.shortName) {
-                          question.visible = parameters.newVisibilityValue;
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-
-        break;
+    const functionToExecute = this.actionService[action.name];
+    if (functionToExecute && typeof functionToExecute === 'function') {
+      functionToExecute.call(null, facts, parameters);
     }
+
+    // switch (action.name) {
+    //   case Actions.alterMedicationDx:
+    //     this.actionService.alterMedicationDx(facts, parameters);
+    //     break;
+    //   case Actions.alterFormItemVisibility:
+    //     this.actionService.alterFormItemVisibility(facts, parameters);
+    //     break;
+    // }
   }
+
+
 }
